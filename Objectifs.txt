@@ -1,0 +1,10 @@
+Ecrire un code qui va tester la communications entre deux modules SX1276 grâce à la librairie dédiée. 
+Lien github : https://github.com/sandeepmistry/arduino-LoRa
+
+On va faire varier les paramètres de redondance CR [4/5 à 4/8] pour la redondance et Spreading Factor (SF) pour le débit tout en s'envoyant des messages simples.
+Par exemples, qui pourraient sortir des capteurs (température, pression...).
+
+Donc il faut bien lire et comprendre la librairie et préparer tous ensemble le code. Prochaine réunion pour en discuter : Samedi 2 janvier, 13h30.
+N'hésitez pas à poser vos questions sur le discord dans le channel odb-lora!
+
+Merci :)
