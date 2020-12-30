@@ -33,7 +33,7 @@ void setup() {
   // override the default CS, reset, and IRQ pins (optional)
   LoRa.setPins(csPin, resetPin, irqPin); // set CS, reset, IRQ pin
 
-  if (!LoRa.begin(868E6)) {             // initialize ratio at 915 MHz
+  if (!LoRa.begin(868E6)) {             // initialize ratio at 868 MHz
     Serial.println("LoRa init failed. Check your connections.");
     while (true);                       // if failed, do nothing
   }
