@@ -33,12 +33,12 @@ void setup() {
   // override the default CS, reset, and IRQ pins (optional)
   LoRa.setPins(csPin, resetPin, irqPin); // set CS, reset, IRQ pin
 
-  if (!LoRa.begin(915E6)) {             // initialize ratio at 915 MHz
+  if (!LoRa.begin(868E6)) {             // initialize ratio at 915 MHz
     Serial.println("LoRa init failed. Check your connections.");
     while (true);                       // if failed, do nothing
   }
 
-  LoRa.setSpreadingFactor(8);           // ranges from 6-12,default 7 see API docs
+  Lora.setCodingRate4(6)          // à faire varier entre 5 et 8. Il doit être a priori le même en récepteur et émetteur, à vérifier également par les tests.
   Serial.println("LoRa init succeeded.");
 }
 
@@ -62,20 +62,4 @@ void sendMessage(String outgoing) {
   LoRa.print(outgoing);                 // add payload
   LoRa.endPacket();                     // finish packet and send it
   msgCount++;                           // increment message ID
-}
-
-void onReceive(int packetSize) {
-  if (packetSize == 0) return;          // if there's no packet, return
-
-  // read packet header bytes:
-  String incoming = "";
-
-  while (LoRa.available()) {
-    incoming += (char)LoRa.read();
-  }
-
-  Serial.println("Message: " + incoming);
-  Serial.println("RSSI: " + String(LoRa.packetRssi()));
-  Serial.println("Snr: " + String(LoRa.packetSnr()));
-  Serial.println();
 }
