@@ -40,7 +40,7 @@ void setup() {
   
  // Paramètre à faire varier en re-téléversant le programme à chaque fois, ou une boucle for mais on a moins de temps d'analyser les résultats, à voir...
   
-  LoRa.setSpreadingFactor(8);          //Entre 6 et 12, 7 par défaut
+  LoRa.setSpreadingFactor(8);          //Entre 6 et 12, 7 par défaut, il doit être a priori le même en récepteur et émetteur, à vérifier également par les tests.
   Serial.println("LoRa init succeeded.");
 }
 
