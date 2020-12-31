@@ -1,8 +1,8 @@
 // V1 en monothread, on rajoutera les semaphores, threads, mutex... avec la librairie arduino_free_RTOS en V2
 
-//##################################Libraries##################################
+//################################## Libraries ##################################
 
-//P,T,z,H
+// P,T,z,H
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_BME280.h>
@@ -13,7 +13,17 @@
 #include <math.h>
 #include <MsTimer2.h>
 
-// ##################################Ordonnanceur##################################
+// GPS
+#include <SoftwareSerial.h>
+
+// SD https://www.arduino.cc/en/Tutorial/LibraryExamples/Datalogger
+#include <SD.h>
+
+// TX
+#include <LoRa.h>
+
+
+// ################################## Ordonnanceur ##################################
 #define   NumTache      6 //capteur P,T,z,H / capteur accel,gyro / GPS / écriture carte SD / TX / RX en continu donc pas une tâche / Commande chaufferette / 
 #define   DureeRep_ms   6000
 unsigned char Tache_on[NumTache],Tache_off[NumTache];
@@ -21,13 +31,14 @@ unsigned long Tache_start[NumTache],i;
 unsigned long Master_time=0, Tache_duree[NumTache];
 unsigned char Tache_Active=0; 
 
-// ##################################P,T,z,H##################################
+// ################################## P,T,z,H ##################################
 #define SEALEVELPRESSURE_HPA (1013.25)
 
 Adafruit_BME280 bme; 
-
+double[] pTzHvalues;
 unsigned long delayTime;
-// ##################################Accel-gyro###############################
+// ################################## Accel-gyro ###############################
+double[] accelGyroValues;
 //Accélérations linéaires selon les 3 axes 
 float accX;     
 float accY;
@@ -67,13 +78,32 @@ float elapsedTime = Time/1000;
 //Create a instance of class LSM6DS3
 LSM6DS3 myIMU(I2C_MODE, 0x6A);    //I2C device address 0x6A
 
+
+//################################## GPS ##################################
+SoftwareSerial SoftSerial(2, 3);
+unsigned char buffer[64];                   // buffer array for data receive over serial port
+int count=0;  
+double[] GPSValues;
+
+// ################################## SD ##################################
+const int chipSelect = 10;
+
+// ################################## Lora ##################################
+const int csPin = 7;          // LoRa radio chip select
+const int resetPin = 6;       // LoRa radio reset
+const int irqPin = 1;         // change for your board; must be a hardware interrupt pin
+
+byte msgCount = 0;            // count of outgoing messages
+int interval = 2000;          // interval between sends
+long lastSendTime = 0;        // time of last packet send
+
 void setup()
 {
 
     Serial.begin(9600);
     while(!Serial);    // time to get serial running
 
-    // ##################################Ordonnanceur##################################
+    // ################################## Ordonnanceur ##################################
     // Init écheances des taches (en ms)  
     Tache_duree[0]=1000; // capteur P,T,z,H
     Tache_duree[1]=1000; // capteur accel, gyro
@@ -90,7 +120,7 @@ void setup()
     Tache_start[4]=5000;
     Tache_start[5]=6000;
 
-    // ##################################P,T,z,H##################################
+    // ################################## P,T,z,H ##################################
 
     Serial.println(F("BME280 test"));
 
@@ -115,7 +145,7 @@ void setup()
 
     Serial.println();
 
-    // ##################################Accel-gyro###############################
+    // ################################## Accel-gyro ###############################
     //Call .begin() to configure the IMUs
     if (myIMU.begin() != 0) {
         Serial.println("Device error");
@@ -135,8 +165,46 @@ void setup()
     gyroAngleX = accAngleX;
     gyroAngleY = accAngleY;
 
+    //################################## GPS ##################################
+    SoftSerial.begin(9600);                 // the SoftSerial baud rate
 
+    // ################################## SD ##################################
+    Serial.print("Initializing SD card...");
+
+    if (!SD.begin(chipSelect)) {
+
+    Serial.println("initialization failed. Things to check:");
+
+    Serial.println("1. is a card inserted?");
+
+    Serial.println("2. is your wiring correct?");
+
+    Serial.println("3. did you change the chipSelect pin to match your shield or module?");
+
+    Serial.println("Note: press reset or reopen this serial monitor after fixing your issue!");
+
+    while (true);
+
+  }
+
+    Serial.println("SD initialization done.");
+
+    ////################################## Lora //##################################
+    Serial.println("LoRa Duplex - Set spreading factor");
+
+    // override the default CS, reset, and IRQ pins (optional)
+    LoRa.setPins(csPin, resetPin, irqPin); // set CS, reset, IRQ pin
+
+    if (!LoRa.begin(868E6)) {             // initialize ratio at 868 MHz
+    Serial.println("LoRa init failed. Check your connections.");
+    while (true);                       // if failed, do nothing
+    }
+
+    Lora.setCodingRate4(6)          // à faire varier entre 5 et 8. Il doit être a priori le même en récepteur et émetteur, à vérifier également par les tests.
+    Serial.println("LoRa init succeeded.");
 }
+
+
 
 void loop()
 {
@@ -167,34 +235,38 @@ void loop()
     Tache_Active=1;
   }
 
-  // Tâche 2 accel-gyro
+  // Tâche 2 : accel-gyro
   else if(Tache_off[1])
   {
     accelGyroValues = AcccelGyro();
     Tache_Active=2;
   }
 
-  // Tâche 3 
-  else if(Tache_off[2])
-  {
-    Tache_Active=3;
-  }
-
-  // Tâche 4
+  // Tâche 3 : GPS
   else if(Tache_off[3])
   {
+    GPSValues = GPS();
     Tache_Active=3;
   }
 
-  // Tâche 5 
+  // Tâche 4 : SD
+  else if(Tache_off[2])
+  {
+    message = writeIntoSD(pTzHvalues, accelGyroValues, GPSValues);
+    Tache_Active=3;
+  }
+
+  // Tâche 5 : LoraTX
   else if(Tache_off[4])
   {
+    LoraTX(message);
     Tache_Active=4;
   }
 
-  // Tâche 5 
+  // Tâche 5 : Chaufferette
   else if(Tache_off[5])
   {
+    heater(pTzHvalues[1]);
     Tache_Active=5;
   }
 
@@ -210,6 +282,7 @@ void loop()
   Serial.println(Master_time%1000);
 }
 
+// ################################## P,T,z,H ##################################
 
 double[] pTzH() {
     /*temperature in Celsius degree*/
@@ -237,7 +310,7 @@ double[] pTzH() {
     //mettre tout dans une liste et return
 }
 
-
+//################################## Accel-gyro ##################################
 
 double[] AcccelGyro() { // debut de la fonction d'interruption Timer2
 
@@ -327,4 +400,84 @@ double[] AcccelGyro() { // debut de la fonction d'interruption Timer2
     Serial.println(yaw, 4);
 
     //tout mettre dans une liste et la return
+}
+
+//################################## GPS ##################################
+double GPS(){
+    if (SoftSerial.available())                     // if date is coming from software serial port ==> data is coming from SoftSerial shield
+    {
+        while(SoftSerial.available())               // reading data into char array
+        {
+            buffer[count++]=SoftSerial.read();      // writing data into array
+            if(count == 64)break;
+        }
+        Serial.write(buffer,count);                 // if no data transmission ends, write buffer to hardware serial port
+        clearBufferArray();                         // call clearBufferArray function to clear the stored data from the array
+        count = 0;                                  // set counter of while loop to zero 
+    }
+    if (Serial.available())                 // if data is available on hardware serial port ==> data is coming from PC or notebook
+    SoftSerial.write(Serial.read());        // write it to the SoftSerial shield
+
+    //parser, mettre dans une liste et return
+}
+
+void clearBufferArray()                     // GPS function to clear buffer array
+{
+    for (int i=0; i<count;i++)
+    {
+        buffer[i]=NULL;
+    }                      // clear all index of array with command NULL
+}
+
+//################################## SD ##################################
+void writeIntoSD(pTzHvalues, accelGyroValues, GPSValues){
+    // make a string for assembling the data to log:
+
+    String dataString = "P : " + pTzHvalues[0] + "," + " T : " + pTzHvalues[1] + "," + " z : " + pTzHvalues[2] + "," + " H : " + pTzHvalues[3] + ","
+    + " AccX : " + accelGyroValues[0] + "," + " AccY : " + accelGyroValues[1] + "," + " GyroX : " + accelGyroValues[2] + "," + " GyroY : " + accelGyroValues[3]
+    + "," + " GyroZ : " + accelGyroValues[4] + "," + " AngleX : " + accelGyroValues[5] + "," + " AngleY : " + accelGyroValues[6] + ","  + " AngleZ : " 
+    + accelGyroValues[7] + ","  + " Longitude : " + GPSValues[0] + "," + " Latitude : " + GPSValues[1] + "," + " Altitude : " + GPSValues[2];
+
+
+    // open the file. note that only one file can be open at a time,
+
+    // so you have to close this one before opening another.
+
+    File dataFile = SD.open("datalog.txt", FILE_WRITE);
+
+    // if the file is available, write to it:
+
+    if (dataFile) {
+
+    dataFile.println(dataString);
+
+    dataFile.close();
+
+    }
+
+    // if the file isn't open, pop up an error:
+
+    else {
+
+    Serial.println("error opening datalog.txt");
+
+    }
+}
+
+// Lora
+void LoraTX(message) {
+    LoRa.beginPacket();                   // start packet
+    LoRa.print(message);                 // add payload
+    LoRa.endPacket();                     // finish packet and send it 
+    Serial.println("Sent");
+}
+
+// Chaufferette
+void heater(T) {
+    if (T<-15) {
+     // activer la chaufferette : à coder avec un interrupteur 
+    }
+    else {
+        // désactiver la chaufferette;
+    }
 }
