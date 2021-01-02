@@ -1,0 +1,51 @@
+#include <SPI.h>              // include libraries
+#include <LoRa.h>
+
+const int csPin = 7;          // LoRa radio chip select
+const int resetPin = 6;       // LoRa radio reset
+const int irqPin = 1;         // change for your board; must be a hardware interrupt pin
+
+byte msgCount = 0;            // count of outgoing messages
+int interval = 2000;          // interval between sends
+long lastSendTime = 0;        // time of last packet send
+
+void setup() {
+  Serial.begin(9600);                   // initialize serial
+  while (!Serial);
+
+  Serial.println("LoRa Duplex - Set spreading factor");
+
+  // override the default CS, reset, and IRQ pins (optional)
+  LoRa.setPins(csPin, resetPin, irqPin); // set CS, reset, IRQ pin
+
+  if (!LoRa.begin(868E6)) {             // initialize ratio at 868 MHz
+    Serial.println("LoRa init failed. Check your connections.");
+    while (true);                       // if failed, do nothing
+  }
+  
+ // Paramètre à faire varier en re-téléversant le programme à chaque fois, ou une boucle for mais on a moins de temps d'analyser les résultats, à voir...
+  
+  LoRa.setSignalBandwidth(125E3);          //À faire varier entre 7.8E3 et 250E3. il doit être a priori le même en récepteur et émetteur, à vérifier également par les tests.
+  Serial.println("LoRa init succeeded.");
+}
+
+void loop() {
+  // parse for a packet, and call onReceive with the result:
+  onReceive(LoRa.parsePacket());
+}
+
+void onReceive(int packetSize) {
+  if (packetSize == 0) return;          // if there's no packet, return
+
+  // read packet header bytes:
+  String incoming = "";
+
+  while (LoRa.available()) {
+    incoming += (char)LoRa.read();
+  }
+
+  Serial.println("Message: " + incoming);
+  Serial.println("RSSI: " + String(LoRa.packetRssi()));
+  Serial.println("Snr: " + String(LoRa.packetSnr()));
+  Serial.println();
+}
