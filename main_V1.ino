@@ -2,6 +2,9 @@
 
 //################################## Libraries ##################################
 
+//T
+#include <DS18B20.h>
+
 // P,T,z,H
 #include <Wire.h>
 #include <SPI.h>
@@ -24,19 +27,24 @@
 
 
 // ################################## Ordonnanceur ##################################
-#define   NumTache      6 //capteur P,T,z,H / capteur accel,gyro / GPS / écriture carte SD / TX / RX en continu donc pas une tâche / Commande chaufferette / 
-#define   DureeRep_ms   6000
-unsigned char Tache_on[NumTache],Tache_off[NumTache];
-unsigned long Tache_start[NumTache],i;
-unsigned long Master_time=0, Tache_duree[NumTache];
+#define   NUMTACHE      7 //capteur T, capteur P,T,z,H / capteur accel,gyro / GPS / écriture carte SD / TX / RX en continu donc pas une tâche / Commande chaufferette / 
+#define   DUREEREP_MS   7000
+unsigned char Tache_on[NUMTACHE],Tache_off[NUMTACHE];
+unsigned long Tache_start[NUMTACHE],i;
+unsigned long Master_time=0, Tache_duree[NUMTACHE];
 unsigned char Tache_Active=0; 
+
+
+// ################################## T ################################## https://github.com/matmunk/DS18B20
+DS18B20 ds(2);
 
 // ################################## P,T,z,H ##################################
 #define SEALEVELPRESSURE_HPA (1013.25)
 
 Adafruit_BME280 bme; 
-double[] pTzHvalues;
-unsigned long delayTime;
+#define RHO (1,225)
+#define G (9.81)
+double pTzHvalues[4];
 // ################################## Accel-gyro ###############################
 double[] accelGyroValues;
 //Accélérations linéaires selon les 3 axes 
@@ -122,7 +130,7 @@ void setup()
 
     // ################################## P,T,z,H ##################################
 
-    Serial.println(F("BME280 test"));
+    Serial.println("Initialisation PTzH");
 
     unsigned status;
     
@@ -130,21 +138,20 @@ void setup()
     status = bme.begin(0x76);  /* the function bme.begin takes in parameter the adress of the sensor*/
     /* if at the beginnign the adress in unknown, run the code "code_to_found_adress"*/
 
-    if (!status) {
+		// TODO delete after test 
+    while (!status) {
         Serial.println("Could not find a valid BME280 sensor, check wiring, address, sensor ID!");
         Serial.print("SensorID was: 0x"); Serial.println(bme.sensorID(),16);
         Serial.print("ID of 0xFF probably means a bad address, a BMP 180 or BMP 085\n");
         Serial.print("ID of 0x56-0x58 represents a BMP 280,\n");
         Serial.print("ID of 0x60 represents a BME 280.\n");
         Serial.print("ID of 0x61 represents a BME 680.\n");
-        while (1) delay(10);
+        delay(1000);
     }
+    // END TODO
+   	
+    Serial.println("PTzH OK"); 
     
-    Serial.println("-- Default Test --"); /* once the status is ok*/
-    delayTime = 1000;
-
-    Serial.println();
-
     // ################################## Accel-gyro ###############################
     //Call .begin() to configure the IMUs
     if (myIMU.begin() != 0) {
@@ -212,62 +219,64 @@ void loop()
   Master_time=millis(); 
 
   // Init de l'ordonnanceur avec la période de répétition 
-  Master_time=(Master_time % DureeRep_ms);
+  Master_time=(Master_time % DUREEREP_MS);
   
   // Génération des conditions de début des taches  
-  for (i=0;i<NumTache;i++)
+  for (i=0;i<NUMTACHE;i++)
   {
     Tache_on[i]=(Master_time>Tache_start[i]);
   }
 
   // Génération des conditions d'arrêts   
-  for (i=0;i<NumTache;i++)
+  for (i=0;i<NUMTACHE;i++)
   {
     Tache_off[i]=Tache_on[i] & (Master_time<(Tache_start[i]+Tache_duree[i]));
   }
 
   // Exécution des tâches 
 
-  // Tâche 1 : P,T,z,H
+
+  // Tâche 1 : T
   if(Tache_off[0])
   {
-    pTzHvalues = pTzH(); /*fonction defined after*/
-    Tache_Active=1;
+    TValue = getT();
   }
 
-  // Tâche 2 : accel-gyro
-  else if(Tache_off[1])
+
+  // Tâche 2 : P,T,z,H
+  if(Tache_off[1])
+  {
+    pTzHvalues = pTzH();
+  }
+
+  // Tâche 3 : accel-gyro
+  else if(Tache_off[2])
   {
     accelGyroValues = AcccelGyro();
-    Tache_Active=2;
   }
 
-  // Tâche 3 : GPS
+  // Tâche 4 : GPS
   else if(Tache_off[3])
   {
     GPSValues = GPS();
-    Tache_Active=3;
   }
 
-  // Tâche 4 : SD
-  else if(Tache_off[2])
-  {
-    message = writeIntoSD(pTzHvalues, accelGyroValues, GPSValues);
-    Tache_Active=3;
-  }
-
-  // Tâche 5 : LoraTX
+  // Tâche 5 : SD
   else if(Tache_off[4])
   {
-    LoraTX(message);
-    Tache_Active=4;
+    message = writeIntoSD(pTzHvalues, accelGyroValues, GPSValues);
   }
 
-  // Tâche 5 : Chaufferette
+  // Tâche 6 : LoraTX
   else if(Tache_off[5])
   {
+    LoraTX(message);
+  }
+
+  // Tâche 7 : Chaufferette
+  else if(Tache_off[6])
+  {
     heater(pTzHvalues[1]);
-    Tache_Active=5;
   }
 
   // Autres: Désactivation des sorties 
@@ -282,9 +291,28 @@ void loop()
   Serial.println(Master_time%1000);
 }
 
+// ################################## T ##################################
+
+  double getT() {
+    return ds.getTempC();
+  }
+			
+
 // ################################## P,T,z,H ##################################
 
-double[] pTzH() {
+double *pTzH() {
+		
+    double pTzH[4];
+    
+    pTzH[0] = bme.readPressure() / 100.0F;
+    pTzH[1] = bme.readTemperature() ;
+    pTzH[2] = (SEALEVELPRESSURE_HPA - pTzH[0])/(RHO*G)
+    pTzH[3] = bme.readHumidity();
+    
+    return pTzH;
+    
+    //TODO delete after test
+    /*
     /*temperature in Celsius degree*/
     Serial.print("Temperature = ");
     Serial.print(bme.readTemperature());
@@ -306,7 +334,10 @@ double[] pTzH() {
     Serial.println(" %");
 
     Serial.println();
+    
+    */
 
+		
     //mettre tout dans une liste et return
 }
 
@@ -413,7 +444,7 @@ double GPS(){
         }
         Serial.write(buffer,count);                 // if no data transmission ends, write buffer to hardware serial port
         clearBufferArray();                         // call clearBufferArray function to clear the stored data from the array
-        count = 0;                                  // set counter of while loop to zero 
+        count = 0;                                  // set counter of while loop to zero 
     }
     if (Serial.available())                 // if data is available on hardware serial port ==> data is coming from PC or notebook
     SoftSerial.write(Serial.read());        // write it to the SoftSerial shield
