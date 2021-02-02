@@ -204,7 +204,7 @@ void setup()
   etat_cour->etat=5;
   etat_cour->succ=NULL;
 
-  //test de l'automate de traitement
+  //test de l'automate de traitement   
   if(DEBUG)
   {
     test(tete);
@@ -315,10 +315,11 @@ void get_pTzH(){
 //################################## Accel-gyro ##################################
 
 //################################## GPS ##################################
-void get_GPS()
+void get_GPS(struct *automate)
 {
 if (SoftSerial.available())                     // if date is coming from software serial port ==> data is coming from SoftSerial shield
-    {
+    { 
+        tete=automate;
         if(DEBUG)
          {
            Serial.print("***********");
@@ -326,11 +327,59 @@ if (SoftSerial.available())                     // if date is coming from softwa
            Serial.print("***********");
         while(SoftSerial.available())               // reading data into char array
         {
-
-            buffer[count++]=SoftSerial.read();      // writing data into array
-            if(count == 64)break;
+            switch(automate->etat)
+            {
+              etat 1:     
+                if(SoftSerial.read() == automate->transition)
+                {
+                  buffer[count++]=SoftSerial.read();
+                  automate = automate->succ;
+                  break;
+                }
+                else
+                {
+                  break;
+                }
+              etat 2:     
+                if(SoftSerial.read() == automate->transition)
+                {
+                  buffer[count++]=SoftSerial.read();
+                  automate = automate->succ;
+                  break;
+                }
+                else
+                {
+                  break;
+                }
+              etat 3:     
+                if(SoftSerial.read() == automate->transition)
+                {
+                  buffer[count++]=SoftSerial.read();
+                  automate = automate->succ;
+                  break;
+                }
+                else
+                {
+                  break;
+                }
+              etat 4:     
+                if(SoftSerial.read() == automate->transition)
+                {
+                  buffer[count++]=SoftSerial.read();
+                  automate = automate->succ;
+                  break;
+                }
+                else
+                {
+                  break;
+                }
+              etat 5:     
+                  buffer[count++]=SoftSerial.read();
+            }
+                if(count == 64)break;            
         }
-        Serial.write(buffer,count);                 // if no data transmission ends, write buffer to hardware serial port
+        Serial.write(buffer,count); 
+        automate=tete;                // if no data transmission ends, write buffer to hardware serial port
         clearBufferArray();                         // call clearBufferArray function to clear the stored data from the array
         count = 0;                                  // set counter of while loop to zero 
     }
