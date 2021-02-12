@@ -213,8 +213,9 @@ void loop()
         Serial.print("*******");
         Serial.print("T_value");
         Serial.print("*******");
-  }
+   }
   Serial.print(ds.getTempC());
+  }
   // Autres: Désactivation des sorties
   else
   {
