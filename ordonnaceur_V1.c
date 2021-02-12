@@ -18,9 +18,9 @@
 
 // GPS
 #include <SoftwareSerial.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdbool.h>
+#include <TinyGPS.h>
+
+
 
 // SD https://www.arduino.cc/en/Tutorial/LibraryExamples/Datalogger
 //#include <SD.h>
@@ -96,18 +96,12 @@ DS18B20 ds(2);
 
 
 //################################## GPS ##################################
-SoftwareSerial SoftSerial(2, 3);
-unsigned char buffer[64];                   // buffer array for data receive over serial port
-int count=0;
-double[] GPSValues;
-//définition de l'automate de traitement
-struct etat
-      { 
-        int etat;
-        char transition;
-        etat *succ;
-      }; 
 
+ 
+long lat,lon; // create variable for latitude and longitude object
+ 
+SoftwareSerial gpsSerial(3, 4); // create gps sensor connection
+TinyGPS gps; // create gps object
 
 // ################################## SD ##################################
 //const int chipSelect = 10;
@@ -170,46 +164,8 @@ void setup()
 
   Serial.println();
   //################################## GPS ##################################
-  //initialisation de l'automate de traitement de capture de la chaîne : $GPGGA
-  struct etat *etat_cour;
-  struct etat *etat_tmp;
-  struct etat *tete;
-  //creation premier etat
-  struct etat *etat_cour = (struct etat*) malloc(sizeof(struct etat));
-  etat_cour->transition="$";
-  etat_cour->etat=1;
-  tete=etat_cour;
-  //creation second etat
-  struct etat *etat_cour = (struct etat*) malloc(sizeof(struct etat));
-  tete->succ=etat_cour;
-  etat_cour->transition="G";
-  etat_cour->etat=2;
-  etat_tmp=etat_cour;
-  //creation troisieme etat
-  struct etat *etat_cour = (struct etat*) malloc(sizeof(struct etat));
-  tete->succ=etat_cour;
-  etat_cour->transition="P";
-  etat_cour->etat=3;
-  etat_tmp=etat_cour;
-  //creation quatrieme etat
-  struct etat *etat_cour = (struct etat*) malloc(sizeof(struct etat));
-  tete->succ=etat_cour;
-  etat_cour->transition="G";
-  etat_cour->etat=4;
-  etat_tmp=etat_cour;
-  //creation cinquieme etat
-  struct etat *etat_cour = (struct etat*) malloc(sizeof(struct etat));
-  tete->succ=etat_cour;
-  etat_cour->transition="A";
-  etat_cour->etat=5;
-  etat_cour->succ=NULL;
-
-  //test de l'automate de traitement   
-  if(DEBUG)
-  {
-    test(tete);
-  }
-  
+  Serial.begin(9600); // connect serial
+  gpsSerial.begin(9600); // connect gps sensor
 
   // ################################## Accel-gyro ###############################
 
@@ -315,117 +271,27 @@ void get_pTzH(){
 //################################## Accel-gyro ##################################
 
 //################################## GPS ##################################
-void get_GPS(struct *automate)
+void get_GPS()
 {
-if (SoftSerial.available())                     // if date is coming from software serial port ==> data is coming from SoftSerial shield
-    { 
-        tete=automate;
-        if(DEBUG)
-         {
-           Serial.print("***********");
-           Serial.print("GPS_values");
-           Serial.print("***********");
-        while(SoftSerial.available())               // reading data into char array
-        {
-            switch(automate->etat)
-            {
-              etat 1:     
-                if(SoftSerial.read() == automate->transition)
-                {
-                  buffer[count++]=SoftSerial.read();
-                  automate = automate->succ;
-                  break;
-                }
-                else
-                {
-                  break;
-                }
-              etat 2:     
-                if(SoftSerial.read() == automate->transition)
-                {
-                  buffer[count++]=SoftSerial.read();
-                  automate = automate->succ;
-                  break;
-                }
-                else
-                {
-                  break;
-                }
-              etat 3:     
-                if(SoftSerial.read() == automate->transition)
-                {
-                  buffer[count++]=SoftSerial.read();
-                  automate = automate->succ;
-                  break;
-                }
-                else
-                {
-                  break;
-                }
-              etat 4:     
-                if(SoftSerial.read() == automate->transition)
-                {
-                  buffer[count++]=SoftSerial.read();
-                  automate = automate->succ;
-                  break;
-                }
-                else
-                {
-                  break;
-                }
-              etat 5:     
-                  buffer[count++]=SoftSerial.read();
-            }
-                if(count == 64)break;            
-        }
-        Serial.write(buffer,count); 
-        automate=tete;                // if no data transmission ends, write buffer to hardware serial port
-        clearBufferArray();                         // call clearBufferArray function to clear the stored data from the array
-        count = 0;                                  // set counter of while loop to zero 
-    }
-  } 
-  void clearBufferArray()                     // function to clear buffer array
-  {
-    for (int i=0; i<count;i++)
-    {
-        buffer[i]=0;
-    }                      // clear all index of array with command NULL
-}
-void test(struct *automate)
-{
-  int i=0;
-  for(i=0;i<4;i++)
-  {
-    switch(automate->etat)
-    {
-      etat 1:     
-        printf("1er état de la chaîne de traitement GPS \n");
-        printf("Element de transition, %c",automate->transition)
-        automate=automate->succ;
-        break;
-      etat 2:     
-        printf("2nd état de la chaîne de traitement GPS \n");
-        printf("Element de transition, %c",automate->transition)
-        automate=automate->succ;
-        break;
-      etat 3:     
-        printf("3e état de la chaîne de traitement GPS \n");
-        printf("Element de transition, %c",automate->transition)
-        automate=automate->succ;
-        break;
-      etat 4:     
-        printf("4e état de la chaîne de traitement GPS \n");
-        printf("Element de transition, %c",automate->transition)
-        automate=automate->succ;
-        break;
-      etat 5:     
-        printf("5e état de la chaîne de traitement GPS test OK \n");
-        printf("Element de transition, %c",automate->transition)
-        automate=automate->succ;
-        break;
-    }
-    
+if(gpsSerial.available()){ // check for gps data
+   if(gps.encode(gpsSerial.read())){ // encode gps data
+    gps.get_position(&lat,&lon); // get latitude and longitude
+    // display position
+    Serial.print("Position: ");
+    Serial.print("lat: ");Serial.print(lat);Serial.print(" ");// print latitude
+    Serial.print("lon: ");Serial.println(lon); // print longitude
+   }
   }
+   
+ } 
+ void clearBufferArray()                     // function to clear buffer array
+ {
+   for (int i=0; i<count;i++)
+   {
+       buffer[i]=0;
+   }                      // clear all index of array with command NULL
+ }
+
 
 }
 //################################## SD ##################################
