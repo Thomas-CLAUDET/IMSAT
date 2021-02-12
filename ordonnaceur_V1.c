@@ -31,7 +31,7 @@
 
 
 // ################################## Ordonnanceur ##################################
-#define   NUMTACHE      2 //capteur P,T,z,H / capteur accel,gyro / GPS / écriture carte SD / TX / RX en continu donc pas une tâche / Commande chaufferette / 
+#define   NUMTACHE      3 //capteur P,T,z,H / capteur accel,gyro / GPS / écriture carte SD / TX / RX en continu donc pas une tâche / Commande chaufferette / 
 #define   DUREEREP_MS   6000
 #define   DEBUG         1 //variable d'affiche des données sur le moniteur série, actif à 1 inactif à 0
 unsigned char Tache_on[NUMTACHE], Tache_off[NUMTACHE];
@@ -219,6 +219,10 @@ void loop()
   else
   {
     Tache_Active = 0;
+  }
+  if (Tache_off[2])
+  {
+    get_GPS();
   }
 
   // Affichage de la tache active
