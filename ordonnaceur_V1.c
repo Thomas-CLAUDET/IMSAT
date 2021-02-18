@@ -174,8 +174,6 @@ void setup()
   //################################## Lora //##################################
 }
 
-
-
 void loop()
 {
   // Lecture de l'ordonnanceur
@@ -205,6 +203,8 @@ void loop()
     Tache_Active = 1;
     Serial.println("b");
   }
+
+  // Tâche 2 : Température
    if (Tache_off[1])
   {
 
@@ -216,20 +216,22 @@ void loop()
    }
   Serial.print(ds.getTempC());
   }
-  // Autres: Désactivation des sorties
-  else
-  {
-    Tache_Active = 0;
-  }
+  // Tâche 3 : GPS
   if (Tache_off[2])
   {
     get_GPS();
   }
 
-  // Affichage de la tache active
-//  Serial.print(Master_time / 1000);
-//  Serial.print(":");
-//  Serial.println(Master_time % 1000);
+  // Tâche 4 : Gyro
+
+  // Tâche 5 : Lora
+
+  // Tâche 6 : SD
+
+// Affichage de la tache active
+  Serial.print(Master_time / 1000);
+  Serial.print(":");
+  Serial.println(Master_time % 1000);
 }
 
 // ################################## P,T,z,H ##################################
@@ -275,16 +277,22 @@ void get_pTzH(){
 
 //################################## Accel-gyro ##################################
 
+// Mettre ici la fonction accel
+
 //################################## GPS ##################################
 void get_GPS()
 {
 if(gpsSerial.available()){ // check for gps data
-   if(gps.encode(gpsSerial.read())){ // encode gps data
+   if(gps.encode(gpsSerial.read())) // encode gps data
+   { 
     gps.get_position(&lat,&lon); // get latitude and longitude
     // display position
-    Serial.print("Position: ");
-    Serial.print("lat: ");Serial.print(lat);Serial.print(" ");// print latitude
-    Serial.print("lon: ");Serial.println(lon); // print longitude
+    if(DEBUG)
+    {
+      Serial.print("Position: ");
+      Serial.print("lat: ");Serial.print(lat);Serial.print(" ");// print latitude
+      Serial.print("lon: ");Serial.println(lon); // print longitude
+    }
    }
   }
    
@@ -296,9 +304,6 @@ if(gpsSerial.available()){ // check for gps data
        buffer[i]=0;
    }                      // clear all index of array with command NULL
  }
-
-
-}
 //################################## SD ##################################
-
+// Mettre ici le code du capteur de carte sd 
 // Lora
